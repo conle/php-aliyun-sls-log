@@ -1,5 +1,7 @@
 <?php
 namespace AliSlsLog;
+
+use Exception;
 /**
  * Copyright (C) Alibaba Cloud Computing
  * All rights reserved
