@@ -1,0 +1,25 @@
+{
+  "name": "conle/php-aliyun-sls-log",
+  "description": "php sdk for aliyun log",
+  "keywords": [
+    "aliyun",
+    "sls",
+    "log"
+  ],
+  "homepage": "http://www.aliyun.com/product/sls/",
+  "type": "library",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Conle"
+    }
+  ],
+  "require": {
+    "php": ">=7.1"
+  },
+  "autoload": {
+    "files": [
+      "Log_Autoload.php"
+    ]
+  }
+}
