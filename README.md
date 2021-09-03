@@ -18,7 +18,7 @@ API Reference: [中文](https://help.aliyun.com/document_detail/29007.html) [ENG
 
 ### Install
 
-composer require "conle/php-aliyun-sls-log"
+composer require conle/php-aliyun-sls-log
 
 ### Use
 
