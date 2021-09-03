@@ -26,17 +26,18 @@ composer require conle/php-aliyun-sls-log
 <?php
 use AliSlsLog\SaveLogSls;
 
+$logstore = '';
 $config = [
-  "end_point" => "http://cn-shanghai.log.aliyuncs.com"
-  "project" => ""
-  "access_key" => ""
-  "access_key_secret" => ""
+    "end_point" => "http://cn-shanghai.log.aliyuncs.com",
+    "project" => "",
+    "access_key" => "",
+    "access_key_secret" => ""
 ];
 $client = new SaveLogSls($config, $logstore);
 
 $content = [];
 $topic = '';
-$client->putLogs($content,$topic);
+$client->putLogs($content, $topic);
 
 ```
 
