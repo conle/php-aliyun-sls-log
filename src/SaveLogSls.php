@@ -35,8 +35,39 @@ class SaveLogSls
         $this->client = new Aliyun_Log_Client($endpoint, $accessKeyId, $accessKey, $token);
     }
 
+    /**
+     * 拼接成功返回值
+     * @param $request_id
+     * @param array $data
+     * @param bool $status
+     * @param string $message
+     * @return array
+     */
+    public function logSuccess($request_id, array $data = [], bool $status = true, string $message = 'success')
+    {
+        return ['request_id' => $request_id, 'data' => $data, 'status' => $status, 'message' => $message];
+    }
 
-    function putLogs(array $contents, string $topic = 'test')
+    /**
+     * 拼接失败的返回值
+     * @param $request_id
+     * @param string $message
+     * @param $code
+     * @param bool $status
+     * @return array
+     */
+    public function logError(string $message = 'success', $code = 0, $request_id = 0, bool $status = false)
+    {
+        return ['request_id' => $request_id, 'status' => $status, 'message' => $message];
+    }
+
+    /**
+     * 存入日志
+     * @param array $contents
+     * @param string $topic
+     * @return Models\Response\Aliyun_Log_Models_PutLogsResponse|false
+     */
+    public function putLogs(array $contents, string $topic)
     {
 
         $logItem = new Aliyun_Log_Models_LogItem();
@@ -45,251 +76,141 @@ class SaveLogSls
         $logitems = array($logItem);
         $request = new Aliyun_Log_Models_PutLogsRequest($this->project, $this->logstore,
             $topic, null, $logitems);
-
         try {
             $response = $this->client->putLogs($request);
-            $this->logVarDump($response);
+            return $this->logSuccess($response->getHeader('x-log-requestid'));
         } catch (Aliyun_Log_Exception $ex) {
-            $this->logVarDump($ex);
+            return $this->logError($ex->getErrorMessage(), $ex->getErrorCode(), $ex->getRequestId());
         } catch (Exception $ex) {
-            $this->logVarDump($ex);
+            return $this->logError($ex->getMessage(), $ex->getCode());
         }
     }
 
-    function listLogstores()
+    /**
+     * 获取阿里logstores
+     * @return array
+     */
+    public function listLogstores()
     {
         try {
             $request = new Aliyun_Log_Models_ListLogstoresRequest($this->project);
             $response = $this->client->listLogstores($request);
-            $this->logVarDump($response);
-        } catch
-        (Aliyun_Log_Exception $ex) {
-            $this->logVarDump($ex);
+            return $this->logSuccess($response->getRequestId(), $response->getLogstores());
+        } catch (Aliyun_Log_Exception $ex) {
+            return $this->logError($ex->getErrorMessage(), $ex->getErrorCode(), $ex->getRequestId());
         } catch (Exception $ex) {
-            $this->logVarDump($ex);
+            return $this->logError($ex->getMessage(), $ex->getCode());
         }
     }
 
 
-    function listTopics()
+    /**
+     * 获取topic
+     * @return array
+     */
+    public function listTopics()
     {
         $request = new Aliyun_Log_Models_ListTopicsRequest($this->project, $this->logstore);
-
         try {
             $response = $this->client->listTopics($request);
-            $this->logVarDump($response);
+            return $this->logSuccess($response->getRequestId(), $response->getTopics());
         } catch (Aliyun_Log_Exception $ex) {
-            $this->logVarDump($ex);
+            return $this->logError($ex->getErrorMessage(), $ex->getErrorCode(), $ex->getRequestId());
         } catch (Exception $ex) {
-            $this->logVarDump($ex);
+            return $this->logError($ex->getMessage(), $ex->getCode());
         }
     }
 
-    function getLogs()
+
+    /**
+     * 获取日志 默认100条
+     * @param string $topic
+     * @param int $start_time
+     * @param int $end_time
+     * @return array
+     */
+    public function getLogs(string $topic, $start_time = 0, $end_time = 0)
     {
-        $topic = 'TestTopic';
-        $from = time() - 3600;
-        $to = time();
+        $from = $start_time > 0 ? $start_time : time() - 3600;
+        $to = $end_time > 0 ? $end_time : time();
         $request = new Aliyun_Log_Models_GetLogsRequest($this->project, $this->logstore, $from, $to, $topic, '', 100, 0, False);
 
         try {
             $response = $this->client->getLogs($request);
-            foreach ($response->getLogs() as $log) {
-                print $log->getTime() . "\t";
+            $ret = [];
+            foreach ($response->getLogs() as $k => $log) {
+                $ret[$k]['time'] = $log->getTime();
                 foreach ($log->getContents() as $key => $value) {
-                    print $key . ":" . $value . "\t";
+                    $ret[$k][$key] = $value;
                 }
-
-                print "\n";
             }
-
-        } catch
-        (Aliyun_Log_Exception $ex) {
-            $this->logVarDump($ex);
+            return $this->logSuccess($response->getRequestId(), $ret);
+        } catch (Aliyun_Log_Exception $ex) {
+            return $this->logError($ex->getErrorMessage(), $ex->getErrorCode(), $ex->getRequestId());
         } catch (Exception $ex) {
-            $this->logVarDump($ex);
+            return $this->logError($ex->getMessage(), $ex->getCode());
         }
     }
 
-    function getProjectLogsWithPowerSql()
+    /**
+     * sql查询日志
+     * @param $query
+     * @return array
+     */
+    public function getProjectLogsWithPowerSql($query)
     {
-        $query = " select count(method) from sls_operation_log where __time__ > to_unixtime(now()) - 300 and __time__ < to_unixtime(now())";
+        //$query="select * from log where __time__ > to_unixtime(now()) - 43200 and __time__ < to_unixtime(now())";
         $request = new Aliyun_Log_Models_GetProjectLogsRequest($this->project, $query, True);
 
         try {
             $response = $this->client->getProjectLogs($request);
             #$response = $this->client->getProjectLogs($request);
-            foreach ($response->getLogs() as $log) {
-                print $log->getTime() . "\t";
+            $ret = [];
+            foreach ($response->getLogs() as $k => $log) {
+                $ret[$k]['time'] = $log->getTime();
                 foreach ($log->getContents() as $key => $value) {
-                    print $key . ":" . $value . "\t";
+                    $ret[$k][$key] = $value;
                 }
-
-                print "\n";
             }
-            print "proccesedRows:" . $response->getProcessedRows() . "\n";
-            print "elapsedMilli:" . $response->getElapsedMilli() . "\n";
-            print "cpuSec:" . $response->getCpuSec() . "\n";
-            print "cpuCores:" . $response->getCpuCores() . "\n";
-            print "requestId:" . $response->getRequestId() . "\n";
+            $project = [
+                'proccesedRows' => $response->getProcessedRows(),
+                'elapsedMilli' => $response->getElapsedMilli(),
+                'cpuSec' => $response->getCpuSec(),
+                'cpuCores' => $response->getCpuCores(),
+                'requestId' => $response->getRequestId(),
+            ];
+            return $this->logSuccess($response->getRequestId(), ['project' => $project, 'log' => $ret]);
 
-        } catch
-        (Aliyun_Log_Exception $ex) {
-            $this->logVarDump($ex);
+        } catch (Aliyun_Log_Exception $ex) {
+            return $this->logError($ex->getErrorMessage(), $ex->getErrorCode(), $ex->getRequestId());
         } catch (Exception $ex) {
-            $this->logVarDump($ex);
+            return $this->logError($ex->getMessage(), $ex->getCode());
         }
     }
 
-    function crudSqlInstance()
-    {
-        $res = $this->client->createSqlInstance($this->project, 1000);
-        $this->logVarDump($res);
-        $res = $this->client->updateSqlInstance($this->project, 999);
-        $this->logVarDump($res);
-        $res = $this->client->listSqlInstance($this->project);
-        $this->logVarDump($res);
-    }
 
-    function getHistograms()
+    /**
+     * 日志分布
+     * @param $topic
+     * @param int $start_time
+     * @param int $end_time
+     * @return array
+     */
+    public function getHistograms($topic, $start_time = 0, $end_time = 0)
     {
-        $topic = 'TestTopic';
-        $from = time() - 3600;
-        $to = time();
+        $from = $start_time > 0 ? $start_time : time() - 3600;
+        $to = $end_time > 0 ? $end_time : time();
         $request = new Aliyun_Log_Models_GetHistogramsRequest($this->project, $this->logstore, $from, $to, $topic, '');
 
         try {
             $response = $this->client->getHistograms($request);
-            $this->logVarDump($response);
-        } catch
-        (Aliyun_Log_Exception $ex) {
-            $this->logVarDump($ex);
+            dd($response,$response->getHistograms());
+            return $this->logSuccess($response->getRequestId(),$response->getHistograms());
+        } catch (Aliyun_Log_Exception $ex) {
+            return $this->logError($ex->getErrorMessage(), $ex->getErrorCode(), $ex->getRequestId());
         } catch (Exception $ex) {
-            $this->logVarDump($ex);
+            return $this->logError($ex->getMessage(), $ex->getCode());
         }
     }
 
-    function listShard()
-    {
-        $request = new Aliyun_Log_Models_ListShardsRequest($this->project, $this->logstore);
-        try {
-            $response = $this->client->listShards($request);
-            $this->logVarDump($response);
-        } catch
-        (Aliyun_Log_Exception $ex) {
-            $this->logVarDump($ex);
-        } catch (Exception $ex) {
-            $this->logVarDump($ex);
-        }
-    }
-
-    function batchGetLogs()
-    {
-        $listShardRequest = new Aliyun_Log_Models_ListShardsRequest($this->project, $this->logstore);
-        $listShardResponse = $this->client->listShards($listShardRequest);
-        foreach ($listShardResponse->getShardIds() as $shardId) {
-            $getCursorRequest = new Aliyun_Log_Models_GetCursorRequest($this->project, $this->logstore, $shardId, null, time() - 60);
-            $response = $this->client->getCursor($getCursorRequest);
-            $cursor = $response->getCursor();
-            $count = 100;
-            while (true) {
-                $batchGetDataRequest = new Aliyun_Log_Models_BatchGetLogsRequest($this->project, $this->logstore, $shardId, $count, $cursor);
-                $this->logVarDump($batchGetDataRequest);
-                $response = $this->client->batchGetLogs($batchGetDataRequest);
-                if ($cursor == $response->getNextCursor()) {
-                    break;
-                }
-
-                $logGroupList = $response->getLogGroupList();
-                foreach ($logGroupList as $logGroup) {
-                    print ($logGroup->getCategory());
-
-                    foreach ($logGroup->getLogsArray() as $log) {
-                        foreach ($log->getContentsArray() as $content) {
-                            print($content->getKey() . ":" . $content->getValue() . "\t");
-                        }
-                        print("\n");
-                    }
-                }
-                $cursor = $response->getNextCursor();
-            }
-        }
-    }
-
-    function batchGetLogsWithRange()
-    {
-        $listShardRequest = new Aliyun_Log_Models_ListShardsRequest($this->project, $this->logstore);
-        $listShardResponse = $this->client->listShards($listShardRequest);
-        foreach ($listShardResponse->getShardIds() as $shardId) {
-            //pull data which reached server at time range [now - 60s, now) for every shard
-            $curTime = time();
-            $beginCursorResponse = $this->client->getCursor(new Aliyun_Log_Models_GetCursorRequest($this->project, $this->logstore, $shardId, null, $curTime - 60));
-            $beginCursor = $beginCursorResponse->getCursor();
-            $endCursorResponse = $this->client->getCursor(new Aliyun_Log_Models_GetCursorRequest($this->project, $this->logstore, $shardId, null, $curTime));
-            $endCursor = $endCursorResponse->getCursor();
-            $cursor = $beginCursor;
-            print("-----------------------------------------\nbatchGetLogs for shard: " . $shardId . ", cursor range: [" . $beginCursor . ", " . $endCursor . ")\n");
-            $count = 100;
-            while (true) {
-                $batchGetDataRequest = new Aliyun_Log_Models_BatchGetLogsRequest($this->project, $this->logstore, $shardId, $count, $cursor, $endCursor);
-                $response = $this->client->batchGetLogs($batchGetDataRequest);
-                $logGroupList = $response->getLogGroupList();
-                $logGroupCount = 0;
-                $logCount = 0;
-                foreach ($logGroupList as $logGroup) {
-                    $logGroupCount += 1;
-                    foreach ($logGroup->getLogsArray() as $log) {
-                        $logCount += 1;
-                        foreach ($log->getContentsArray() as $content) {
-                            print($content->getKey() . ":" . $content->getValue() . "\t");
-                        }
-
-                        print("\n");
-                    }
-                }
-                $nextCursor = $response->getNextCursor();
-                print("batchGetLogs once, cursor: " . $cursor . ", nextCursor: " . nextCursor . ", logGroups: " . $logGroupCount . ", logs: " . $logCount . "\n");
-                if ($cursor == $nextCursor) {
-                    //read data finished
-                    break;
-                }
-                $cursor = $nextCursor;
-            }
-        }
-    }
-
-    function mergeShard()
-    {
-        $request = new Aliyun_Log_Models_MergeShardsRequest($this->project, $this->logstore, $shardId);
-        try {
-            $response = $this->client->mergeShards($request);
-            $this->logVarDump($response);
-        } catch
-        (Aliyun_Log_Exception $ex) {
-            $this->logVarDump($ex);
-        } catch (Exception $ex) {
-            $this->logVarDump($ex);
-        }
-    }
-
-    function splitShard()
-    {
-        $request = new Aliyun_Log_Models_SplitShardRequest($this->project, $this->logstore, $shardId, $midHash);
-        try {
-            $response = $this->client->splitShard($request);
-            $this->logVarDump($response);
-        } catch
-        (Aliyun_Log_Exception $ex) {
-            $this->logVarDump($ex);
-        } catch (Exception $ex) {
-            $this->logVarDump($ex);
-        }
-    }
-
-    function logVarDump($expression)
-    {
-        print "<br>loginfo begin = " . get_class($expression) . "<br>";
-        var_dump($expression);
-        print "<br>loginfo end<br>";
-    }
 }

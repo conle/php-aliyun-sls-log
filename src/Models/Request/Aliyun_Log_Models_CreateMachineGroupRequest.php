@@ -1,0 +1,32 @@
+<?php
+namespace AliSlsLog\Models\Request;
+
+/**
+ * Copyright (C) Alibaba Cloud Computing
+ * All rights reserved
+ */
+
+
+/**
+ * 
+ *
+ * @author log service dev
+ */
+class Aliyun_Log_Models_CreateMachineGroupRequest extends Aliyun_Log_Models_Request {
+
+    private $machineGroup;
+    /**
+     * Aliyun_Log_Models_CreateMachineGroupRequest Constructor
+     *
+     */
+    public function __construct($machineGroup=null) {
+        $this->machineGroup = $machineGroup;
+    }
+    public function getMachineGroup(){
+        return $this->machineGroup;
+    }
+    public function setMachineGroup($machineGroup){ 
+        $this->machineGroup = $machineGroup;
+    }
+ 
+}
